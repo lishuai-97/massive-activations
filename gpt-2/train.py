@@ -4,14 +4,20 @@ import math
 import pickle
 from contextlib import nullcontext
 
+import sys
+
 import numpy as np
 import torch
+import torch.distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
+
+os.environ["WANDB_MODE"] = "offline"
 
 # -----------------------------------------------------------------------------
 # default config values designed to train a gpt2 (124M) on OpenWebText
 # I/O
+ckpt_dir = '/data3/lishuai_datasets/llm/checkpoints'
 out_dir = 'logs_ckpt/'
 save_dir = "results/"
 data_dir = "data/"
@@ -28,6 +34,11 @@ init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 wandb_log = False # disabled by default
 wandb_project = 'owt'
 wandb_run_name = 'gpt2' # 'run' + str(time.time())
+
+# tensorboard logging
+tensorboard_log = True
+tensorboard_run_name = 'gpt2' # 'run' + str(time.time())
+
 # data
 dataset = 'openwebtext'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
@@ -43,6 +54,7 @@ bias = False # do we use bias inside LayerNorm and Linear layers?
 optim_name="adam"
 learning_rate = 6e-4 # max learning rate
 max_iters = 600000 # total number of training iterations
+exit_iters = 50000  # exit after this many iterations, even if not converged
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -64,6 +76,11 @@ exec(open('configurator.py').read()) # overrides from command line or config fil
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
 # -----------------------------------------------------------------------------
 
+print(f">>> learning rate: {learning_rate}")
+print(f">>> min learning rate: {min_lr}")
+print(f">>> Adam beta1: {beta1}")
+print(f">>> Adam beta2: {beta2}")
+
 if model_type == "gpt2_default":
     from model_default import GPTConfig, GPT
 elif model_type == "gpt2_sink":
@@ -81,6 +98,7 @@ if ddp:
     ddp_local_rank = int(os.environ['LOCAL_RANK'])
     ddp_world_size = int(os.environ['WORLD_SIZE'])
     device = f'cuda:{ddp_local_rank}'
+    print(f">>> Using dtype {dtype} on device {device}")
     torch.cuda.set_device(device)
     master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
     seed_offset = ddp_rank # each process gets a different seed
@@ -93,6 +111,7 @@ else:
     master_process = True
     seed_offset = 0
     ddp_world_size = 1
+    print(f">>> Using dtype {dtype} on device {device}")
 tokens_per_iter = gradient_accumulation_steps * ddp_world_size * batch_size * block_size
 print(f"tokens per iteration will be: {tokens_per_iter:,}")
 
@@ -206,6 +225,8 @@ if compile:
 if ddp:
     model = DDP(model, device_ids=[ddp_local_rank])
 
+print(model)
+
 # helps estimate an arbitrarily accurate loss over either split using many batches
 @torch.no_grad()
 def estimate_loss():
@@ -241,6 +262,11 @@ if wandb_log and master_process:
     import wandb
     wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
+# tensorboard logging
+if tensorboard_log and master_process:
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(log_dir=f'{out_dir}/logs/{tensorboard_run_name}')
+
 # training loop
 X, Y = get_batch('train') # fetch the very first batch
 t0 = time.time()
@@ -266,6 +292,10 @@ while True:
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
             })
+        
+        if tensorboard_log:
+            writer.add_scalar('val/loss', losses['val'], iter_num)
+        
         if losses['val'] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses['val']
             if iter_num > 0:
@@ -277,10 +307,41 @@ while True:
                     'best_val_loss': best_val_loss,
                     'config': config,
                 }
-                print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, f'ckpt_{iter_num}.pt'))
+                print(f"saving checkpoint to {ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}")
+                # check if the directory exists, if not create it
+                os.makedirs(os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}'), exist_ok=True)
+                torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num}.pt'))
     if iter_num == 0 and eval_only:
         break
+
+    if iter_num == exit_iters:
+        if master_process:
+            print(f"Exiting after {exit_iters} iterations as requested")
+
+            checkpoint = {
+                'model': raw_model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'model_args': model_args,
+                'iter_num': iter_num,
+                'best_val_loss': best_val_loss,
+                'config': config,
+            }
+            print(f"saving checkpoint to {ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}")
+            # check if the directory exists, if not create it
+            os.makedirs(os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}'), exist_ok=True)
+            torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num}.pt'))
+
+            if tensorboard_log:
+                writer.close()
+        
+        
+        if ddp:
+            torch.distributed.barrier()
+
+        # for debugging purposes, print the rank of the process
+        # print(f"Process {ddp_rank if ddp else '0'} is existing.")
+
+        sys.exit()
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     # and using the GradScaler if data type is float16
@@ -320,11 +381,19 @@ while True:
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9*running_mfu + 0.1*mfu
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
+
+        if tensorboard_log:
+            writer.add_scalar('train/loss', lossf, iter_num)
+            writer.add_scalar('train/lr', lr, iter_num)
+            writer.add_scalar('train/mfu', running_mfu, iter_num)
+
     iter_num += 1
     local_iter_num += 1
 
     # termination conditions
     if iter_num > max_iters:
+        if tensorboard_log and master_process:
+            writer.close()
         break
 
 if ddp:
