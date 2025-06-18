@@ -44,7 +44,7 @@ else:
 # optimizer configs
 optim_name = "adam"
 beta1 = 0.9
-beat2 = 0.999
+beta2 = 0.999
 learning_rate = 3e-4  # default 6e-4 for GPT-2 124M
 min_lr = 3e-5         # default 6e-5 for GPT-2 124M
 
