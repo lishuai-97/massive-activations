@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ROOT_DIR=./
-export EXP_NAME="gpt2-345M-default-run-lr-3e-4-beta2-0p999"
-# export EXP_NAME="gpt2-345M-default-run-lr-1e-3"
+# export EXP_NAME="gpt2-345M-default-run-lr-3e-4-beta2-0p999"
+export EXP_NAME="gpt2-345M-default-run-lr-1e-3-beta2-0p999-rerun-deterministic-2"
 TENSORBOARD_PATH=$ROOT_DIR/results/logs/$EXP_NAME
 
 mkdir -p $TENSORBOARD_PATH

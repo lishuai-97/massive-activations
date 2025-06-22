@@ -45,8 +45,8 @@ else:
 optim_name = "adam"
 beta1 = 0.9
 beta2 = 0.999
-learning_rate = 3e-4  # default 6e-4 for GPT-2 124M
-min_lr = 3e-5         # default 6e-5 for GPT-2 124M
+learning_rate = 1e-3  # default 6e-4 for GPT-2 124M
+min_lr = 1e-4         # default 6e-5 for GPT-2 124M
 
 # this makes total number of tokens be 300B
 max_iters = 600000
@@ -60,6 +60,6 @@ eval_iters = 200
 log_interval = 1
 
 # weight decay
-weight_decay = 1e-1
+weight_decay = 1e-2   # default: 1e-1, note that the weight decay is set to 1e-2 in Megatron-LM
 
 model_type = "gpt2_default"

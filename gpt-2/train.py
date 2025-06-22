@@ -117,9 +117,23 @@ print(f"tokens per iteration will be: {tokens_per_iter:,}")
 
 if master_process:
     os.makedirs(out_dir, exist_ok=True)
+
+# set the random seed for reproducibility
+# set random seed for cpu device of torch
 torch.manual_seed(1337 + seed_offset)
-torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
-torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
+# set random seed for numpy
+np.random.seed(1337 + seed_offset)
+# set random seed for cuda device of torch
+torch.cuda.manual_seed_all(1337 + seed_offset)
+# Disable algorithms that may lead to uncertain results
+torch.backends.cudnn.deterministic = True # use deterministic algorithms
+torch.backends.cudnn.benchmark = False # disable auto-tuner that selects the best algorithm for hardware
+
+# comment out the following lines for fully deterministic results
+# torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
+# torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
+
+
 device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
 # note: float16 data type will automatically use a GradScaler
 ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
@@ -310,7 +324,7 @@ while True:
                 print(f"saving checkpoint to {ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}")
                 # check if the directory exists, if not create it
                 os.makedirs(os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}'), exist_ok=True)
-                torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num}.pt'))
+                torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num:07d}.pt'))
     if iter_num == 0 and eval_only:
         break
 
@@ -329,7 +343,7 @@ while True:
             print(f"saving checkpoint to {ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}")
             # check if the directory exists, if not create it
             os.makedirs(os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}'), exist_ok=True)
-            torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num}.pt'))
+            torch.save(checkpoint, os.path.join(f'{ckpt_dir}/nanogpt_ckpt/{tensorboard_run_name}', f'ckpt_{iter_num:07d}.pt'))
 
             if tensorboard_log:
                 writer.close()
