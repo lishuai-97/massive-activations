@@ -108,7 +108,7 @@ if __name__ == "__main__":
         ds_list = ["wikitext", "c4", "pg19"]
         res = {}
         for ds_name in ds_list:
-            ppl = lib.eval_ppl(ds_name, model, tokenizer, args.seed, device)
+            ppl = lib.eval_ppl(ds_name, model, tokenizer, args.seed)
             res[ds_name] = ppl 
             print(f"{ds_name} ppl: {ppl}", file=f, flush=True)
 
