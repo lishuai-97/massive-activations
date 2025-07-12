@@ -171,6 +171,7 @@ if os.path.exists(meta_path):
 # model init
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                   bias=bias, vocab_size=None, dropout=dropout) # start with model_args from command line
+print(f">>> model_args:\n{model_args}")
 if init_from == 'scratch':
     # init a new model from scratch
     print("Initializing a new model from scratch")
@@ -225,6 +226,7 @@ scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
 
 # optimizer
 optimizer = model.configure_optimizers(optim_name, weight_decay, learning_rate, (beta1, beta2), device_type)
+print(f">>> optimizer: {optim_name}, weight_decay: {weight_decay}, learning_rate: {learning_rate}, beta1: {beta1}, beta2: {beta2}")
 if init_from == 'resume':
     optimizer.load_state_dict(checkpoint['optimizer'])
 checkpoint = None # free up memory

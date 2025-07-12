@@ -1,10 +1,10 @@
 #!/bin/bash
 
 export CKPT_DIR="/data3/lishuai_datasets/llm/checkpoints/nanogpt_ckpt"
-export EXP_NAME="gpt2-345M-default-run-lr-1e-3-beta2-0p999"
+export EXP_NAME="gpt2-345M-default-run-lr-3e-4-beta2-0p999-50k"
 
 # Define checkpoint iterations to evaluate
-CKPT_ITERATIONS=(3000 5000 6000 7000 8000 9000 11000)
+CKPT_ITERATIONS=(10000 20000 30000 40000 50000)
 
 # Loop through each checkpoint for evaluation
 for ckpt_iter in "${CKPT_ITERATIONS[@]}"; do

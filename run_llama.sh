@@ -51,6 +51,7 @@ for MODEL_NAME in "${MODELS[@]}"; do
     run_exp "$MODEL_NAME" "--exp4 --layer_id 3 --savedir $BASE_SAVEDIR/attn_vis/" \
         "Attention Visualization"
     
+    echo ""
     echo "Completed all experiments for $MODEL_NAME"
     echo ""
 done

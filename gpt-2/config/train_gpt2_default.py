@@ -7,8 +7,6 @@ import os
 out_dir = 'results'
 data_dir = 'data/openwebtext'
 
-# exp_name = 'gpt2-124M-default-run'
-# exp_name = 'gpt2-345M-default-run'
 exp_name = os.environ.get('EXP_NAME', 'gpt2-345M-default-run')   # get from environment variable, default to 'gpt2-345M-default-run'
 # if you want to run with 124M, set EXP_NAME=gpt2-124M-default-run
 print(f">>> Experiment name: {exp_name}")
@@ -45,14 +43,14 @@ else:
 optim_name = "adam"
 beta1 = 0.9
 beta2 = 0.999
-learning_rate = 1e-3  # default 6e-4 for GPT-2 124M
-min_lr = 1e-4         # default 6e-5 for GPT-2 124M
+learning_rate = 3e-4  # default 6e-4 for GPT-2 124M
+min_lr = 3e-5         # default 6e-5 for GPT-2 124M
 
 # this makes total number of tokens be 300B
 max_iters = 600000
 lr_decay_iters = 600000
-# exit_iters = 50000  # exit after this many iterations, even if not converged
-exit_iters = 30000  # exit after this many iterations, even if not converged
+exit_iters = 50000  # exit after this many iterations, even if not converged
+# exit_iters = 30000  # exit after this many iterations, even if not converged
 
 # eval stuff
 eval_interval = 1000
